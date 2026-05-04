@@ -1,0 +1,95 @@
+# Helm chart: runatlantis/atlantis
+# helm repo add runatlantis https://runatlantis.github.io/helm-charts
+# helm install atlantis runatlantis/atlantis -n atlantis -f helm-values.yaml
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/runatlantis/atlantis
+  tag: v0.28.5
+
+orgAllowlist: "github.com/marcelo-luizz/*"
+
+# ============================================================
+# GitHub App Authentication (recomendado sobre PAT)
+# ============================================================
+# NÃO usar github.user/github.token.
+# Usar githubApp com App ID, Installation ID e Private Key.
+#
+# Pré-requisito: criar o Kubernetes Secret com a private key:
+#
+#   kubectl create secret generic atlantis-github-app \
+#     --from-file=key.pem=/path/to/github-app-private-key.pem \
+#     --from-literal=webhook-secret=<seu-webhook-secret> \
+#     -n atlantis
+#
+githubApp:
+  id: 000000                    # Substituir pelo App ID real
+  slug: atlantis-jeitto         # Nome slug do GitHub App
+  installationId: 00000000      # Substituir pelo Installation ID real
+
+# Montar a private key do GitHub App via secret
+volumeMounts:
+  - name: github-app-key
+    mountPath: /etc/atlantis/github-app
+    readOnly: true
+
+volumes:
+  - name: github-app-key
+    secret:
+      secretName: atlantis-github-app
+      items:
+        - key: key.pem
+          path: key.pem
+
+# Environment variables do Atlantis para GitHub App
+environment:
+  ATLANTIS_GH_APP_ID: "000000"                              # Substituir
+  ATLANTIS_GH_APP_KEY_FILE: "/etc/atlantis/github-app/key.pem"
+  ATLANTIS_GH_WEBHOOK_SECRET: "from-secret"                  # Vem do secret
+  ATLANTIS_GH_APP_SLUG: "atlantis-jeitto"
+  ATLANTIS_WRITE_GIT_CREDS: "true"
+
+# Referência ao server-side repo config
+repoConfig: |
+  ---
+  repos:
+    - id: "github.com/marcelo-luizz/gitops-app-infra"
+      allowed_overrides: [workflow, apply_requirements]
+      allow_custom_workflows: true
+    - id: "github.com/marcelo-luizz/gitops-core-infra"
+      allowed_overrides: [workflow, apply_requirements]
+      allow_custom_workflows: true
+
+# ServiceAccount com Workload Identity
+serviceAccount:
+  create: true
+  annotations:
+    iam.gke.io/gcp-service-account: atlantis-sa@jeitto-mgmt.iam.gserviceaccount.com
+
+# Persistent volume para atlantis data
+dataStorage: 5Gi
+
+# Resources
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+
+# Ingress (ou usar LoadBalancer)
+ingress:
+  enabled: true
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: atlantis.jeitto.internal
+      paths:
+        - /
+  tls:
+    - secretName: atlantis-tls
+      hosts:
+        - atlantis.jeitto.internal
