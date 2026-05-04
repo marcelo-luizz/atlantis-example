@@ -1,0 +1,83 @@
+# atlantis.yaml - Este arquivo vai na RAIZ do repositório gitops-app-infra e gitops-core-infra
+# Ele diz ao Atlantis como tratar cada diretório de recurso
+
+version: 3
+automerge: false
+parallel_plan: true
+parallel_apply: false  # Apply sequencial por segurança
+
+projects:
+  # Pattern matching dinâmico - Atlantis detecta automaticamente
+  # qualquer pasta com .tf dentro de environments/
+  - name: dev
+    dir: environments/dev/**/*
+    workspace: dev
+    workflow: dev
+    autoplan:
+      when_modified: ["*.tf", "*.tfvars"]
+      enabled: true
+    apply_requirements: [approved, mergeable]
+
+  - name: homolog
+    dir: environments/homolog/**/*
+    workspace: homolog
+    workflow: homolog
+    autoplan:
+      when_modified: ["*.tf", "*.tfvars"]
+      enabled: true
+    apply_requirements: [approved, mergeable]
+
+  - name: prod
+    dir: environments/prod/**/*
+    workspace: prod
+    workflow: prod
+    autoplan:
+      when_modified: ["*.tf", "*.tfvars"]
+      enabled: true
+    apply_requirements: [approved, approved, mergeable]  # 2 approvals para prod
+
+workflows:
+  dev:
+    plan:
+      steps:
+        - env:
+            name: GOOGLE_IMPERSONATE_SERVICE_ACCOUNT
+            value: atlantis-sa@jeitto-dev.iam.gserviceaccount.com
+        - init
+        - plan
+    apply:
+      steps:
+        - env:
+            name: GOOGLE_IMPERSONATE_SERVICE_ACCOUNT
+            value: atlantis-sa@jeitto-dev.iam.gserviceaccount.com
+        - apply
+
+  homolog:
+    plan:
+      steps:
+        - env:
+            name: GOOGLE_IMPERSONATE_SERVICE_ACCOUNT
+            value: atlantis-sa@jeitto-homolog.iam.gserviceaccount.com
+        - init
+        - plan
+    apply:
+      steps:
+        - env:
+            name: GOOGLE_IMPERSONATE_SERVICE_ACCOUNT
+            value: atlantis-sa@jeitto-homolog.iam.gserviceaccount.com
+        - apply
+
+  prod:
+    plan:
+      steps:
+        - env:
+            name: GOOGLE_IMPERSONATE_SERVICE_ACCOUNT
+            value: atlantis-sa@jeitto-prod.iam.gserviceaccount.com
+        - init
+        - plan
+    apply:
+      steps:
+        - env:
+            name: GOOGLE_IMPERSONATE_SERVICE_ACCOUNT
+            value: atlantis-sa@jeitto-prod.iam.gserviceaccount.com
+        - apply
